@@ -35,10 +35,10 @@ export class AppComponent implements OnInit {
 
   readonly masonryOptions = {
     itemSelector: '.masonryItem',
-    gutter: 0,
-    fitWidth: true,
-    columnWidth: 200,
-    percentPosition: false,
+    gutter: 2, // Add some gutter
+    fitWidth: false, // Change to false
+    columnWidth: '.masonryItem', // Use the item as the column width
+    percentPosition: true, // Change to true
     resize: true,
   };
 
