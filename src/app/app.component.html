@@ -1,19 +1,37 @@
-<div class="container-fluid">
-  <div class="row mt-2">
-    <div class="col text-center">
-      <h1 class="">Upload some images</h1>
-      <input
-        type="file"
-        multiple
-        accept="image"
-        (change)="onImageChange($event)"
+<div class="">
+  <app-welcome-screen
+    (nameEntered)="onNameEntered($event)"
+  ></app-welcome-screen>
+
+  <div class="container-fluid">
+    <div class="row mt-2 mb-2 d-flex justify-content-center">
+      <div class="col-10">
+        <app-file-upload
+          (filesSelected)="onImageChange($event)"
+          [uploadComplete]="uploadFinished"
+          (uploadFiles)="onUpload()"
+        ></app-file-upload>
+      </div>
+    </div>
+  </div>
+  <ngx-masonry [options]="masonryOptions" [ordered]="false">
+    <div
+      ngxMasonryItem
+      class="masonryItem"
+      *ngFor="let image of images; let i = index"
+    >
+      <img
+        (click)="openGallery(i)"
+        [src]="image.url"
+        [alt]="image.metadata.filename"
       />
     </div>
-  </div>
-  <div *ngIf="uploadedImages" class="row mt-2">
-    <div class="col-3 text-center" *ngFor="let uploadedImage of uploadedImages">
-      <img class="w-100 h-auto" [src]="uploadedImage" />
-    </div>
-  </div>
+  </ngx-masonry>
+
+  <app-loader [show]="isLoading"></app-loader>
+
+  <!-- set[ordered] boolean to true to keep image order the same-->
+
+  <app-image-gallery [media]="images"></app-image-gallery>
 </div>
 <router-outlet />

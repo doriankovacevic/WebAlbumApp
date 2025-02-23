@@ -1,71 +1,101 @@
-import { Component } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FileUploadService } from './services/file-upload.service';
+import { UploadService } from './services/upload.service';
+import { ImageGalleryComponent } from './image-gallery/image-gallery.component';
+import { UploadFileComponent } from './upload-file/upload-file.component';
+import { NgxMasonryModule } from 'ngx-masonry';
+import { LoaderComponent } from './loader/loader.component';
+import { WelcomeScreenComponent } from './welcome-screen/welcome-screen.component';
+import { RouterOutlet } from '@angular/router';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, CommonModule],
+  imports: [
+    RouterOutlet,
+    CommonModule,
+    ImageGalleryComponent,
+    UploadFileComponent,
+    NgxMasonryModule,
+    LoaderComponent,
+    WelcomeScreenComponent,
+  ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss',
 })
-export class AppComponent {
-  title = 'WebAlbumApp';
-  uploadedImages: any[] = [];
+export class AppComponent implements OnInit {
+  @ViewChild(ImageGalleryComponent) imageGallery!: ImageGalleryComponent;
+  @ViewChild(UploadFileComponent) uploadComponent!: UploadFileComponent;
+
   selectedFiles: File[] = [];
-  uploadProgress: number = 0;
+  isLoading = false;
+  images: any[] = [];
+  uploadFinished = false;
+  visitorName = '';
 
-  maxFiles: number = 5;
+  readonly masonryOptions = {
+    itemSelector: '.masonryItem',
+    gutter: 0,
+    fitWidth: true,
+    columnWidth: 200,
+    percentPosition: false,
+    resize: true,
+  };
 
-  constructor(private _fileUploadService: FileUploadService) {}
+  constructor(private uploadService: UploadService) {}
 
-  onImageChange(event: Event) {
-    const input = event.target as HTMLInputElement;
-    if (!input.files) return;
+  ngOnInit(): void {
+    this.getGallery();
+  }
 
-    if (input.files.length > this.maxFiles) {
-      alert(`You can only upload a maximum of ${this.maxFiles} files.`);
-      // Optionally clear the input so the user can re-select
-      input.value = '';
+  // Handles the event when a visitor enters their name
+  onNameEntered(name: string) {
+    this.visitorName = name;
+    console.log('Welcome, ' + name + '!');
+  }
+
+  // Fetches all images with metadata from the service
+  getGallery(): void {
+    this.isLoading = true;
+    this.uploadService
+      .getAllMediaWithMetadata()
+      .then((data) => {
+        this.images = data;
+      })
+      .catch((error) => console.error(error))
+      .finally(() => (this.isLoading = false));
+  }
+
+  // Opens the image gallery at a specific index
+  openGallery(index: number): void {
+    this.imageGallery.openGallery(index);
+  }
+
+  // Updates the selected files when the user chooses images
+  onImageChange(files: File[]): void {
+    this.selectedFiles = files;
+  }
+
+  // Handles the upload process for selected files
+  async onUpload(): Promise<void> {
+    if (this.selectedFiles.length === 0) {
+      console.log('No files selected');
       return;
     }
 
-    // Otherwise, process the files
-
-    // files type is any because the FileList type doesnt have an iterator function for some reason
-    const files: any = input.files;
-    this.selectedFiles = Array.from(input.files);
-    for (const image of files) {
-      const reader = new FileReader();
-
-      reader.readAsDataURL(image);
-
-      reader.onloadend = () => {
-        if (!this.uploadedImages.includes(reader.result)) {
-          this.uploadedImages.push(reader.result);
-          console.log(this.uploadedImages);
-        }
-      };
+    this.isLoading = true;
+    try {
+      await Promise.all(
+        this.selectedFiles.map((file) => this.uploadService.uploadFile(file))
+      );
+      console.log('All files uploaded successfully');
+      this.getGallery();
+      this.uploadFinished = true;
+      this.uploadComponent.uploadComplete = true;
+    } catch (error) {
+      console.error('Error uploading files:', error);
+    } finally {
+      this.isLoading = false;
     }
-  }
-  onUpload(): void {
-    if (this.selectedFiles.length === 0) return;
-
-    this._fileUploadService.uploadFiles(this.selectedFiles).subscribe({
-      next: (progress) => {
-        if (typeof progress === 'number') {
-          this.uploadProgress = progress;
-        } else {
-          console.log('Upload successful', progress);
-          this.uploadProgress = 0;
-          this.selectedFiles = [];
-        }
-      },
-      error: (error) => {
-        console.error('Upload failed', error);
-        this.uploadProgress = 0;
-      },
-    });
   }
 }
