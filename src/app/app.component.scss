@@ -1,58 +1,24 @@
-.ngx-masonry {
-  width: 100%; // Ensure full width
-  margin: 0 auto; // Center the masonry container
-}
-
-.masonryItem {
-  width: 100%; // Start with full width
-  margin-bottom: 2px;
-  overflow: hidden;
-  transition: top 0.4s ease-in-out, left 0.4s ease-in-out;
-
-  img,
-  video {
-    object-fit: cover;
-    width: 100%;
-    height: auto;
-    cursor: pointer;
-    transition: all 0.3s ease-in;
-    &:hover {
-      transform: scale(1.1);
-    }
-  }
-}
-
-// Extra small devices (phones, less than 576px)
-@media (max-width: 575.98px) {
-  .masonryItem {
-    width: 100%;
-  }
-}
-
-// Small devices (landscape phones, 576px and up)
+// Responsive breakpoints
 @media (min-width: 576px) {
   .masonryItem {
-    width: calc(50% - 10px);
+    width: 50%;
   }
 }
 
-// Medium devices (tablets, 768px and up)
 @media (min-width: 768px) {
   .masonryItem {
-    width: calc(33.333% - 10px);
+    width: 33.333%;
   }
 }
 
-// Large devices (desktops, 992px and up)
 @media (min-width: 992px) {
   .masonryItem {
-    width: calc(25% - 10px);
+    width: 25%;
   }
 }
 
-// Extra large devices (large desktops, 1200px and up)
 @media (min-width: 1200px) {
   .masonryItem {
-    width: calc(20% - 10px);
+    width: 20%;
   }
 }

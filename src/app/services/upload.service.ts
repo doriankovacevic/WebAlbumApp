@@ -13,6 +13,10 @@ import {
   collection,
   addDoc,
   getDocs,
+  query,
+  orderBy,
+  limit,
+  startAfter,
 } from '@angular/fire/firestore';
 import { environment } from '../../../environment';
 import * as ExifReader from 'exifreader';
@@ -67,6 +71,26 @@ export class UploadService {
       }
     }
     return '';
+  }
+
+  async getTotalObjectCount(): Promise<number> {
+    let totalCount = 0;
+    let continuationToken: string | undefined;
+
+    do {
+      const command = new ListObjectsV2Command({
+        Bucket: environment.r2.bucketName,
+        Prefix: 'media/',
+        MaxKeys: 1000,
+        ContinuationToken: continuationToken,
+      });
+
+      const response = await this.s3Client.send(command);
+      totalCount += response.KeyCount || 0;
+      continuationToken = response.NextContinuationToken;
+    } while (continuationToken);
+
+    return totalCount;
   }
 
   async uploadMultipleFiles(files: File[]): Promise<string[]> {
@@ -170,8 +194,8 @@ export class UploadService {
     uploadId: string,
     key: string
   ): Promise<{ ETag: string; PartNumber: number }[]> {
-    const chunkSize = 10 * 1024 * 1024; // 10MB chunks
-    const concurrencyLimit = 4; // Number of concurrent uploads
+    const chunkSize = 10 * 1024 * 1024;
+    const concurrencyLimit = 4;
     const parts: { ETag: string; PartNumber: number }[] = [];
     const totalParts = Math.ceil(arrayBuffer.byteLength / chunkSize);
 
@@ -288,41 +312,57 @@ export class UploadService {
       Prefix: 'media/',
     });
     const { Contents } = await this.s3Client.send(command);
+
     return Contents || [];
   }
 
-  async getMediaMetadata(): Promise<any[]> {
-    const snapshot = await getDocs(collection(this.firestore, 'media'));
+  async getMediaMetadataPaginated(
+    lastDoc: any,
+    pageSize: number
+  ): Promise<any[]> {
+    let mediaQuery;
+    if (lastDoc) {
+      mediaQuery = query(
+        collection(this.firestore, 'media'),
+        orderBy('uploadedAt', 'desc'),
+        startAfter(lastDoc),
+        limit(pageSize)
+      );
+    } else {
+      mediaQuery = query(
+        collection(this.firestore, 'media'),
+        orderBy('uploadedAt', 'desc'),
+        limit(pageSize)
+      );
+    }
+    const snapshot = await getDocs(mediaQuery);
     return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   }
 
+  async getMediaWithMetadataPaginated(
+    lastDoc: any,
+    pageSize: number
+  ): Promise<any[]> {
+    const firestoreMetadata = await this.getMediaMetadataPaginated(
+      lastDoc,
+      pageSize
+    );
+    const objectsWithUrls = await Promise.all(
+      firestoreMetadata.map(async (meta) => ({
+        ...meta,
+        url: await this.getPublicUrl(meta.url.split('/').pop()),
+      }))
+    );
+    return objectsWithUrls;
+  }
+
   async getPublicUrl(key: string): Promise<string> {
+    // add the media prefix to get the image url correctly
+    key = 'media/' + key;
     const command = new GetObjectCommand({
       Bucket: environment.r2.bucketName,
       Key: key,
     });
     return getSignedUrl(this.s3Client, command, { expiresIn: 3600 });
-  }
-
-  async getAllMediaWithMetadata(): Promise<any[]> {
-    const [r2Objects, firestoreMetadata] = await Promise.all([
-      this.listR2Objects(),
-      this.getMediaMetadata(),
-    ]);
-
-    const objectsWithUrls = await Promise.all(
-      r2Objects.map(async (obj) => ({
-        ...obj,
-        url: await this.getPublicUrl(obj.Key),
-      }))
-    );
-
-    return objectsWithUrls.map((obj) => ({
-      ...obj,
-      metadata:
-        firestoreMetadata.find(
-          (meta) => meta.url.split('/').pop() === obj.Key?.split('/').pop()
-        ) || null,
-    }));
   }
 }

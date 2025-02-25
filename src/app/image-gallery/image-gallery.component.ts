@@ -7,6 +7,8 @@ import {
   OnChanges,
   SimpleChanges,
   ViewChild,
+  Output,
+  EventEmitter,
 } from '@angular/core';
 import { NgxMasonryModule } from 'ngx-masonry';
 import lightGallery from 'lightgallery';
@@ -24,21 +26,21 @@ import lgVideo from 'lightgallery/plugins/video';
 })
 export class ImageGalleryComponent implements OnChanges, AfterViewInit {
   @ViewChild('galleryElement') galleryElement!: ElementRef;
+  @Output('shouldLoadMore') shouldLoadMore = new EventEmitter<boolean>();
+
   private gallery: any;
+  private currentMedia: any[] = [];
+  private loadingMore = false;
 
-  @Input() set media(value: any[]) {
-    if (value.length > 0) {
-      this.updateGallery(value);
-    }
-  }
-
-  openGallery(i: number) {
-    this.gallery?.openGallery(i);
-  }
+  @Input() media: any[] = [];
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['media'] && !changes['media'].firstChange) {
-      this.updateGallery(changes['media'].currentValue);
+    if (changes['media']) {
+      this.currentMedia = [...this.media];
+      if (this.gallery) {
+        console.log(this.currentMedia);
+        this.updateGallery();
+      }
     }
   }
 
@@ -46,10 +48,32 @@ export class ImageGalleryComponent implements OnChanges, AfterViewInit {
     this.initializeGallery();
   }
 
+  private onSlideChange(event: any): void {
+    const { index } = event.detail;
+    if (index >= this.media.length - 3) {
+      this.shouldLoadMore.emit();
+    }
+  }
+
+  openGallery(index: number): void {
+    if (this.gallery) {
+      this.gallery.openGallery(index);
+    }
+  }
+
   private initializeGallery(): void {
+    this.destroyGallery();
+    console.log(this.currentMedia);
+
+    this.galleryElement.nativeElement.addEventListener(
+      'lgBeforeSlide',
+      this.onSlideChange.bind(this)
+    );
+    // Ensure dynamicEl is always an array
+    const elements = this.mapMediaToElements(this.currentMedia);
     this.gallery = lightGallery(this.galleryElement.nativeElement, {
       dynamic: true,
-      dynamicEl: [],
+      dynamicEl: elements, // Pass the mapped array directly
       plugins: [lgZoom, lgThumbnails, lgFullscreen, lgVideo],
       thumbnail: true,
       videojs: true,
@@ -60,41 +84,54 @@ export class ImageGalleryComponent implements OnChanges, AfterViewInit {
     });
   }
 
-  private updateGallery(media: any[]): void {
-    if (!this.gallery) {
-      this.initializeGallery();
-    }
+  private updateGallery(): void {
+    if (!this.gallery) return;
 
-    const elements = this.mapMediaToElements(media);
+    // Get fresh mapped elements
+    const elements = this.mapMediaToElements(this.currentMedia);
+
+    // Properly refresh gallery with new elements
     this.gallery.refresh(elements);
+    this.loadingMore = false;
   }
 
   private mapMediaToElements(media: any[]): any[] {
-    return media.map((item) => {
-      const isVideo = item.metadata.contentType.startsWith('video/');
-      const formattedDate = this.formatDate(item.metadata.date);
-      const formattedTime = this.formatTime(item.metadata.date);
+    // Add null checks for all properties
+    return media.map((item) => ({
+      src: item?.url || '',
+      thumb: item?.url || '',
+      subHtml: `
+        <div class="lightGallery-captions">
+          <p>${item?.metadata?.shotBy || ''} ${
+        this.formatDate(item?.metadata?.date) &&
+        this.formatTime(item?.metadata?.date)
+          ? `${this.formatDate(item.metadata.date)} u ${this.formatTime(
+              item.metadata.date
+            )}`
+          : ''
+      }</p>
+        </div>
+      `,
+      ...(item?.metadata?.contentType?.startsWith('video/')
+        ? {
+            video: {
+              source: [{ src: item.url, type: item.metadata.contentType }],
+              attributes: { preload: false, controls: true },
+            },
+          }
+        : {}),
+    }));
+  }
 
-      return {
-        src: item.url,
-        thumb: item.url,
-        subHtml: `
-          <div class="lightGallery-captions">
-            <p>${item.metadata.shotBy} ${
-          formattedDate && formattedTime
-            ? formattedDate + ' u ' + formattedTime
-            : ''
-        }</p>
-          </div>
-        `,
-        ...(isVideo && {
-          video: {
-            source: [{ src: item.url, type: item.metadata.contentType }],
-            attributes: { preload: false, controls: true },
-          },
-        }),
-      };
-    });
+  private destroyGallery(): void {
+    if (this.gallery) {
+      this.galleryElement.nativeElement.removeEventListener(
+        'onAfterSlide',
+        this.onSlideChange
+      );
+      this.gallery.destroy(true);
+      this.gallery = null;
+    }
   }
 
   private formatDate(dateString: string): string {
@@ -112,7 +149,7 @@ export class ImageGalleryComponent implements OnChanges, AfterViewInit {
   private formatTime(dateString: string): string {
     if (!dateString) return '';
     const parts = dateString.split(' ');
-    if (parts.length < 2) return ''; // Return empty string if time part is missing
+    if (parts.length < 2) return '';
     const timePart = parts[1];
     const [hour, minute] = timePart.split(':');
     const date = new Date();

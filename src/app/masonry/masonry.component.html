@@ -1,0 +1,11 @@
+<div class="masonry-container" #masonryContainer>
+  <div class="masonry-item-wrapper" *ngFor="let image of media; let i = index">
+    <img
+      [src]="image.url"
+      alt=""
+      class="masonry-item"
+      (load)="onImageLoad()"
+      (click)="onOpenGallery(i)"
+    />
+  </div>
+</div>

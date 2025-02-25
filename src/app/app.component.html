@@ -14,24 +14,18 @@
       </div>
     </div>
   </div>
-  <ngx-masonry [options]="masonryOptions" [ordered]="true">
-    <div
-      ngxMasonryItem
-      class="masonryItem"
-      *ngFor="let image of images; let i = index"
-    >
-      <img
-        (click)="openGallery(i)"
-        [src]="image.url"
-        [alt]="image.metadata.filename"
-      />
-    </div>
-  </ngx-masonry>
 
   <app-loader [show]="isLoading"></app-loader>
+  <app-masonry
+    [media]="images"
+    [totalImages]="totalImages"
+    (imagesLoadedCount)="onImagesLoadedCount($event)"
+    (onOpen)="openGallery($event)"
+  ></app-masonry>
 
-  <!-- set[ordered] boolean to true to keep image order the same-->
-
-  <app-image-gallery [media]="images"></app-image-gallery>
+  <app-image-gallery
+    (shouldLoadMore)="loadMoreImages()"
+    [media]="images"
+  ></app-image-gallery>
 </div>
 <router-outlet />
